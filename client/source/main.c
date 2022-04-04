@@ -4,6 +4,8 @@ int bg = 0;
 u16* backBuffer = NULL;
 char hostname[256];
 
+#define BUF_SIZE 256 * 256 * 2
+
 void keyPressed(int c) {
     if (c > 0)
         iprintf("%c", c);
@@ -56,8 +58,24 @@ void onConnected() {
     }
     iprintf("Receiving video...\n");
 
-    waitForKeys();
-    if (keysDown() & KEY_START) return;
+    while (true) {
+        int remain = BUF_SIZE;
+        int recvd;
+        while ((recvd = recv(sock, backBuffer + (BUF_SIZE - remain), remain, 0))) {
+            remain += recvd;
+        }
+
+        swiWaitForVBlank();
+
+        scanKeys();
+        if (keysDown() & KEY_START) {
+            shutdown(sock, 0);
+            closesocket(sock);
+            return;
+        }
+
+        swapBuffers();
+    }
 }
 
 int main(void) {

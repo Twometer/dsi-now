@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 var clientMutex = sync.Mutex{}
@@ -76,6 +77,24 @@ func acceptClients() {
 	}
 }
 
+func putPixel(dst []byte, x int, y int, r int, g int, b int) {
+
+}
+
 func main() {
-	acceptClients()
+	go acceptClients()
+
+	// Real deal here
+	framebuffer := make([]uint8, 256*256*2)
+
+	timer := time.NewTimer(500 * time.Millisecond)
+	select {
+	case <-timer.C:
+		for y := 60; y < 120; y++ {
+			for x := 60; x < 120; x++ {
+				putPixel(framebuffer, x, y, 255, 255, 255)
+			}
+		}
+		broadcastMessage(framebuffer)
+	}
 }
