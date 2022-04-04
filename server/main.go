@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/binary"
 	"log"
 	"net"
 	"sync"
@@ -77,8 +78,12 @@ func acceptClients() {
 	}
 }
 
-func putPixel(dst []byte, x int, y int, r int, g int, b int) {
+func rgb15(r int, g int, b int) uint16 {
+	return uint16(((b >> 3) << 10) | ((g >> 3) << 5) | (r >> 3) | (1 << 15))
+}
 
+func putPixel(dst []byte, x int, y int, r int, g int, b int) {
+	binary.LittleEndian.PutUint16(dst[y*256+x:], rgb15(r, g, b))
 }
 
 func main() {
@@ -92,7 +97,7 @@ func main() {
 	case <-timer.C:
 		for y := 60; y < 120; y++ {
 			for x := 60; x < 120; x++ {
-				putPixel(framebuffer, x, y, 255, 255, 255)
+				putPixel(framebuffer, x, y, 5, 25, 255)
 			}
 		}
 		broadcastMessage(framebuffer)
