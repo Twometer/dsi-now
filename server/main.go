@@ -52,7 +52,7 @@ func handleConnection(c net.Conn) {
 			return
 		}
 
-		if netData == "LOGIN DVTP/0.1" {
+		if netData == "LOGIN DVTP/0.1\n" {
 			id := addClient(&c)
 			defer removeClient(id)
 		}
@@ -92,9 +92,8 @@ func main() {
 	// Real deal here
 	framebuffer := make([]uint8, 256*256*2)
 
-	timer := time.NewTimer(500 * time.Millisecond)
-	select {
-	case <-timer.C:
+	ticker := time.NewTicker(500 * time.Millisecond)
+	for range ticker.C {
 		for y := 60; y < 120; y++ {
 			for x := 60; x < 120; x++ {
 				putPixel(framebuffer, x, y, 5, 25, 255)
@@ -102,4 +101,5 @@ func main() {
 		}
 		broadcastMessage(framebuffer)
 	}
+
 }

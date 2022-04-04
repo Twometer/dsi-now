@@ -62,7 +62,8 @@ void onConnected() {
         int remain = BUF_SIZE;
         int recvd;
         while ((recvd = recv(sock, backBuffer + (BUF_SIZE - remain), remain, 0))) {
-            remain += recvd;
+            remain -= recvd;
+            if (remain <= 0) break;
         }
 
         swiWaitForVBlank();
