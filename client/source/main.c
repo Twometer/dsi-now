@@ -4,7 +4,8 @@ int bg = 0;
 u16* backBuffer = NULL;
 char hostname[256];
 
-#define BUF_SIZE 256 * 256 * 2
+#define BUF_SIZE  256 * 256 * 2
+#define WIFI_SSID "DsiNow"
 
 void keyPressed(int c) {
     if (c > 0)
@@ -58,31 +59,89 @@ void onConnected() {
     }
     iprintf("Receiving video...\n");
 
-    while (true) {
-        int remain = BUF_SIZE;
-        int recvd;
-        while ((recvd = recv(sock, backBuffer + (BUF_SIZE - remain), remain, 0))) {
-            remain -= recvd;
-            if (remain <= 0) break;
-        }
-
-        swiWaitForVBlank();
-
-        scanKeys();
+    for (;;) {
         if (keysDown() & KEY_START) {
             shutdown(sock, 0);
             closesocket(sock);
             return;
         }
 
+        u8 buffer[256];
+        int remain = BUF_SIZE;
+        int recvd;
+        while ((recvd = recv(sock, buffer, 256, 0)) > 0) {
+            remain -= recvd;
+            iprintf("--> RCV %d %d\n", recvd, remain);
+            if (remain <= 0) break;
+        }
+
+        iprintf("Frame!");
+
+        swiWaitForVBlank();
+        scanKeys();
         swapBuffers();
     }
+}
+
+void testScreen() {
+    for (;;) {
+        // check keys
+        if (keysDown() & KEY_START) {
+            return;
+        }
+
+        // Draw
+        for (int iy = 60; iy < 196 - 60; iy++)
+            for (int ix = 60; ix < 256 - 60; ix++)
+                backBuffer[iy * 256 + ix] = (rand() & 0xFFFF) | BIT(15);
+
+        // update
+        swiWaitForVBlank();
+        scanKeys();
+        swapBuffers();
+    }
+}
+
+bool wifiConnect() {
+    Wifi_ScanMode();
+    do {
+        int num = Wifi_GetNumAP();
+        for (int i = 0; i < num; i++) {
+            Wifi_AccessPoint ap;
+            Wifi_GetAPData(i, &ap);
+
+            if (strcmp(ap.ssid, WIFI_SSID) == 0) {
+                iprintf("Connecting to %s\n", ap.ssid);
+                Wifi_SetIP(0, 0, 0, 0, 0);
+                Wifi_ConnectAP(&ap, WEPMODE_NONE, 0, 0);
+                int status = ASSOCSTATUS_DISCONNECTED;
+
+                while (status != ASSOCSTATUS_ASSOCIATED && status != ASSOCSTATUS_CANNOTCONNECT) {
+                    status = Wifi_AssocStatus();
+                    int len = strlen(ASSOCSTATUS_STRINGS[status]);
+                    iprintf("\x1b[0;0H\x1b[K");
+                    iprintf("\x1b[0;%dH%s", (32 - len) / 2, ASSOCSTATUS_STRINGS[status]);
+
+                    scanKeys();
+                    if (keysDown() & KEY_A) return false;
+                    swiWaitForVBlank();
+                }
+                return true;
+            }
+        }
+        swiWaitForVBlank();
+        scanKeys();
+    } while (!(keysDown() & KEY_A));
+    iprintf("Failed to find AP\n");
+    return false;
 }
 
 int main(void) {
     videoSetMode(MODE_5_2D);
     vramSetPrimaryBanks(VRAM_A_MAIN_BG_0x06000000, VRAM_B_MAIN_BG_0x06020000,
                         VRAM_C_SUB_BG, VRAM_D_LCD);
+
+    Wifi_InitDefault(false);
 
     consoleDemoInit();
 
@@ -96,12 +155,13 @@ int main(void) {
     iprintf("\nDSi Now! by Twometer - Main Menu\n\n");
     iprintf("START - Exit\n");
     iprintf("A     - WiFi connect\n");
+    iprintf("B     - Screen test\n");
 
     while (true) {
         waitForKeys();
         if (keysDown() & KEY_A) {
-            iprintf("Connecting to WiFi...\n");
-            if (!Wifi_InitDefault(WFC_CONNECT)) {
+            iprintf("Connecting (A to cancel)...\n");
+            if (!wifiConnect()) {
                 iprintf("Failed to connect!\n");
             } else {
                 iprintf("Connected.\n");
@@ -110,7 +170,13 @@ int main(void) {
                 onConnected();
                 return 0;
             }
-        } else if (keysDown() & KEY_START)
-            break;
+        } else if (keysDown() & KEY_START) {
+            iprintf("EXIT\n");
+            return 0;
+        } else if (keysDown() & KEY_B) {
+            iprintf("Screen test mode\n");
+            testScreen();
+            return 0;
+        }
     }
 }

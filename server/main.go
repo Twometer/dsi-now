@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"log"
+	"math/rand"
 	"net"
 	"sync"
 	"time"
@@ -34,10 +35,13 @@ func broadcastMessage(data []byte) {
 	clientMutex.Lock()
 	defer clientMutex.Unlock()
 	for _, v := range clients {
-		_, err := (*v).Write(data)
+		n, err := (*v).Write(data)
+
 		if err != nil {
 			log.Println("Failed to send", err)
 			continue
+		} else {
+			log.Println("Sent", n, "bytes")
 		}
 	}
 }
@@ -83,7 +87,8 @@ func rgb15(r int, g int, b int) uint16 {
 }
 
 func putPixel(dst []byte, x int, y int, r int, g int, b int) {
-	binary.LittleEndian.PutUint16(dst[y*256+x:], rgb15(r, g, b))
+	idx := y*256 + x*2
+	binary.LittleEndian.PutUint16(dst[idx:], rgb15(r, g, b))
 }
 
 func main() {
@@ -94,12 +99,15 @@ func main() {
 
 	ticker := time.NewTicker(500 * time.Millisecond)
 	for range ticker.C {
+		r := rand.Int()
 		for y := 60; y < 120; y++ {
+			g := rand.Int()
 			for x := 60; x < 120; x++ {
-				putPixel(framebuffer, x, y, 5, 25, 255)
+				b := rand.Int()
+				putPixel(framebuffer, x, y, r, g, b)
 			}
 		}
-		broadcastMessage(framebuffer)
+		go broadcastMessage(framebuffer)
 	}
 
 }
