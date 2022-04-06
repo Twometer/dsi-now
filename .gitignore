@@ -3,3 +3,9 @@ tmp/
 build/
 *.nds
 *.elf
+*.exe
+bin/
+obj/
+Debug/
+Release/
+.vs/

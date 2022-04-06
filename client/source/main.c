@@ -4,7 +4,7 @@ int bg = 0;
 u16* backBuffer = NULL;
 char hostname[256];
 
-#define BUF_SIZE  256 * 256 * 2
+#define BUF_SIZE  256 * 144 * 2
 #define WIFI_SSID "DsiNow"
 
 void keyPressed(int c) {
@@ -38,6 +38,11 @@ void onConnected() {
     iprintf("Connecting to %s...\n", hostname);
     int sock = socket(AF_INET, SOCK_STREAM, 0);
 
+    int a = 8192;
+    if ((setsockopt(sock, 0, SO_RCVBUF, &a, sizeof(int))) < 0) {
+        iprintf("Error setting sock opts..\n");
+    }
+
     struct sockaddr_in sain;
     sain.sin_family = AF_INET;
     sain.sin_port = htons(34221);
@@ -57,8 +62,10 @@ void onConnected() {
         waitForKeys();
         return;
     }
-    iprintf("Receiving video...\n");
 
+    consoleClear();
+
+    iprintf("DSi Now - Running...\n\nby Twometer");
     for (;;) {
         if (keysDown() & KEY_START) {
             shutdown(sock, 0);
@@ -66,16 +73,17 @@ void onConnected() {
             return;
         }
 
-        u8 buffer[256];
+        u8* target = (u8*)backBuffer;
         int remain = BUF_SIZE;
         int recvd;
-        while ((recvd = recv(sock, buffer, 256, 0)) > 0) {
+        while ((recvd = recv(sock, target, remain, 0)) > 0) {
             remain -= recvd;
-            iprintf("--> RCV %d %d\n", recvd, remain);
+            target += recvd;
+            // iprintf("--> RCV %d %d\n", recvd, remain);
             if (remain <= 0) break;
         }
 
-        iprintf("Frame!");
+        // iprintf("Frame!");
 
         swiWaitForVBlank();
         scanKeys();
