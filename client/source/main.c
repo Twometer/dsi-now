@@ -1,5 +1,7 @@
 #include "main.h"
 
+#include "miniz.h"
+
 int bg = 0;
 u16* backBuffer = NULL;
 char hostname[256];
@@ -28,6 +30,15 @@ void waitForKeys() {
     }
 }
 
+u8* decompress_pixels(u8* data, long data_len, unsigned long data_len_uncompressed, int* error_out, u8* dst) {
+    uint8_t* uncompressed_data = malloc(data_len_uncompressed);
+    int error = mz_uncompress(uncompressed_data, &data_len_uncompressed, data, data_len);
+    *error_out = error;
+    if (error != 0)
+        printf("decompress failed: %s\n", mz_error(error));
+    return uncompressed_data;
+}
+
 void onConnected() {
     consoleClear();
     iprintf("Resolving %s...\n", hostname);
@@ -38,7 +49,7 @@ void onConnected() {
     iprintf("Connecting to %s...\n", hostname);
     int sock = socket(AF_INET, SOCK_STREAM, 0);
 
-    int a = 8192;
+    int a = 16384;
     if ((setsockopt(sock, 0, SO_RCVBUF, &a, sizeof(int))) < 0) {
         iprintf("Error setting sock opts..\n");
     }
@@ -63,7 +74,9 @@ void onConnected() {
         return;
     }
 
-    consoleClear();
+    // consoleClear();
+
+    u8 recvbuf[BUF_SIZE];
 
     iprintf("DSi Now - Running...\n\nby Twometer");
     for (;;) {
@@ -73,17 +86,31 @@ void onConnected() {
             return;
         }
 
-        u8* target = (u8*)backBuffer;
-        int remain = BUF_SIZE;
         int recvd;
+        int remain = 4;
+        int frame_len = 0;
+        u8* target = (u8*)&frame_len;
         while ((recvd = recv(sock, target, remain, 0)) > 0) {
             remain -= recvd;
             target += recvd;
-            // iprintf("--> RCV %d %d\n", recvd, remain);
             if (remain <= 0) break;
         }
 
-        // iprintf("Frame!");
+        target = (u8*)recvbuf;
+        remain = frame_len;
+
+        while ((recvd = recv(sock, target, remain, 0)) > 0) {
+            remain -= recvd;
+            target += recvd;
+            if (remain <= 0) break;
+        }
+
+        target = (u8*)backBuffer + 256 * 10;
+        int uncomp_size = BUF_SIZE;
+        int err = mz_uncompress(target, &uncomp_size, recvbuf, frame_len);
+        if (err != 0) {
+            iprintf("zlib err %d\n", err);
+        }
 
         swiWaitForVBlank();
         scanKeys();

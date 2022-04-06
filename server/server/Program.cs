@@ -1,5 +1,7 @@
-﻿using System;
+﻿using Ionic.Zlib;
+using System;
 using System.Drawing;
+using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -7,7 +9,7 @@ namespace server
 {
     internal class Program
     {
-        private const int Framerate = 10;
+        private const int Framerate = 24;
 
         static void Main(string[] args)
         {
@@ -45,8 +47,14 @@ namespace server
                     }
                 }
 
+                var str = new MemoryStream();
+                var buf = new BinaryWriter(str);
+                var compressed = ZlibStream.CompressBuffer(frame.Data);
+                buf.Write(BitConverter.GetBytes(compressed.Length));
+                buf.Write(compressed);
+
                 // Send
-                server.Broadcast(frame.Data);
+                server.Broadcast(str.GetBuffer());
 
                 // Wait
                 Thread.Sleep(frameTime);
