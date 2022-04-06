@@ -9,7 +9,7 @@ namespace server
     internal class Frame
     {
         private const int width = 256;
-        private const int height = 144;
+        private const int height = 120;
 
         public byte[] Data
         {

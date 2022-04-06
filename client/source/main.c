@@ -36,14 +36,18 @@ void onConnected() {
     iprintf("IP: %s\n", inet_ntoa(*(struct in_addr*)host->h_addr_list[0]));
 
     iprintf("Connecting to %s...\n", hostname);
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-
-    int a = 8192;
-    if ((setsockopt(sock, 0, SO_RCVBUF, &a, sizeof(int))) < 0) {
-        iprintf("Error setting sock opts..\n");
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock == -1) {
+        iprintf("socket fail");
+        return;
     }
 
-    struct sockaddr_in sain;
+    /*int a = 8192;
+    if ((setsockopt(sock, 0, SO_RCVBUF, &a, sizeof(int))) < 0) {
+        iprintf("Error setting sock opts..\n");
+    }*/
+
+    /*struct sockaddr_in sain;
     sain.sin_family = AF_INET;
     sain.sin_port = htons(34221);
     sain.sin_addr.s_addr = *((unsigned long*)(host->h_addr_list[0]));
@@ -52,18 +56,30 @@ void onConnected() {
         waitForKeys();
         return;
     }
-    iprintf("Connected to server!\n");
+    iprintf("Connected to server!\n");*/
 
     const char* request_text =
         "LOGIN DVTP/0.1\n\n";
 
-    if (send(sock, request_text, strlen(request_text), 0) == -1) {
+    struct sockaddr_in sain;
+    sain.sin_family = AF_INET;
+    sain.sin_port = htons(34221);
+    sain.sin_addr.s_addr = *((unsigned long*)(host->h_addr_list[0]));
+    int sainsz = sizeof(sain);
+
+    if (sendto(sock, request_text, strlen(request_text), 0, (struct sockaddr*)&sain, sainsz) == -1) {
         iprintf("Login failed.");
         waitForKeys();
         return;
     }
 
-    consoleClear();
+    /*if (send(sock, request_text, strlen(request_text), 0) == -1) {
+        iprintf("Login failed.");
+        waitForKeys();
+        return;
+    }*/
+
+    // consoleClear();
 
     iprintf("DSi Now - Running...\n\nby Twometer");
     for (;;) {
@@ -74,13 +90,20 @@ void onConnected() {
         }
 
         u8* target = (u8*)backBuffer;
-        int remain = BUF_SIZE;
+        /*int remain = BUF_SIZE;
         int recvd;
         while ((recvd = recv(sock, target, remain, 0)) > 0) {
             remain -= recvd;
             target += recvd;
             // iprintf("--> RCV %d %d\n", recvd, remain);
             if (remain <= 0) break;
+        }*/
+        int recvd = recvfrom(sock, target, BUF_SIZE, 0, &sain, &sainsz);
+        if (recvd < 0) {
+            iprintf("recv fail\n");
+            break;
+        } else {
+            iprintf("frame!");
         }
 
         // iprintf("Frame!");
