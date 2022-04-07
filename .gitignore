@@ -9,3 +9,4 @@ obj/
 Debug/
 Release/
 .vs/
+*.out

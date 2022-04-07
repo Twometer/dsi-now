@@ -47,9 +47,11 @@
   <ItemGroup>
     <Compile Include="Client.cs" />
     <Compile Include="Frame.cs" />
+    <Compile Include="IServer.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Server.cs" />
+    <Compile Include="ServerTCP.cs" />
+    <Compile Include="ServerUDP.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
@@ -60,6 +62,9 @@
     </PackageReference>
     <PackageReference Include="System.Drawing.Common">
       <Version>6.0.0</Version>
+    </PackageReference>
+    <PackageReference Include="ZstdNet">
+      <Version>1.4.5</Version>
     </PackageReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

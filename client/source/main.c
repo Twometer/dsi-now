@@ -30,13 +30,16 @@ void waitForKeys() {
     }
 }
 
-u8* decompress_pixels(u8* data, long data_len, unsigned long data_len_uncompressed, int* error_out, u8* dst) {
-    uint8_t* uncompressed_data = malloc(data_len_uncompressed);
-    int error = mz_uncompress(uncompressed_data, &data_len_uncompressed, data, data_len);
-    *error_out = error;
-    if (error != 0)
-        printf("decompress failed: %s\n", mz_error(error));
-    return uncompressed_data;
+void drawZlib(u8* dst, u8* frame, int frame_len) {
+    mz_ulong uncomp_size = BUF_SIZE;
+    int err = mz_uncompress(dst, &uncomp_size, frame, frame_len);
+    if (err != 0) {
+        iprintf("zlib err %d\n", err);
+    }
+}
+
+void drawJpeg(u8* dst, u8* frame, int frame_len) {
+    // TODO https://github.com/Bodmer/JPEGDecoder
 }
 
 void onConnected() {
@@ -105,12 +108,8 @@ void onConnected() {
             if (remain <= 0) break;
         }
 
-        target = (u8*)backBuffer + 256 * 10;
-        int uncomp_size = BUF_SIZE;
-        int err = mz_uncompress(target, &uncomp_size, recvbuf, frame_len);
-        if (err != 0) {
-            iprintf("zlib err %d\n", err);
-        }
+        target = (u8*)backBuffer + 256 * 40;
+        drawJpeg(target, recvbuf, frame_len);
 
         swiWaitForVBlank();
         scanKeys();

@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace server
 {
-    internal class Server
+    internal class ServerTCP : IServer
     {
         private readonly TcpListener listener = new TcpListener(IPAddress.Any, 34221);
         private readonly IDictionary<int, Client> clients = new ConcurrentDictionary<int, Client>();
