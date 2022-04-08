@@ -26,6 +26,8 @@ namespace server
             return null;
         }
 
+
+
         static void Main(string[] args)
         {
             Console.WriteLine("** DSi Now! Video Server **");
@@ -67,15 +69,21 @@ namespace server
                     }
                 }
 
+                /*
+                // == ZLIB ==
                 var str = new MemoryStream();
-                /*var buf = new BinaryWriter(str);
+                var buf = new BinaryWriter(str);
                 var compressed = ZlibStream.CompressBuffer(frame.Data);
                 buf.Write(BitConverter.GetBytes(compressed.Length));
                 buf.Write(compressed);*/
 
-
-                bitmap.Save(str, jpgEncoder, encoderParams);
-                Console.WriteLine(str.Length);
+                // == JPEG ==
+                var jpegStr = new MemoryStream();
+                bitmap.Save(jpegStr, jpgEncoder, encoderParams);
+                var str = new MemoryStream();
+                var buf = new BinaryWriter(str);
+                buf.Write(BitConverter.GetBytes(jpegStr.Length));
+                buf.Write(jpegStr.GetBuffer());
 
                 server.Broadcast(str.GetBuffer());
 

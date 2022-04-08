@@ -1,6 +1,7 @@
 #include "main.h"
 
 #include "miniz.h"
+#include "picojpeg.h"
 
 int bg = 0;
 u16* backBuffer = NULL;
@@ -38,8 +39,94 @@ void drawZlib(u8* dst, u8* frame, int frame_len) {
     }
 }
 
+u8* current_jpeg_frame;
+int current_jpeg_frame_len;
+int current_jpeg_frame_offset;
+
+int min(int a, int b) {
+    return a < b ? a : b;
+}
+
+unsigned char
+pjpeg_need_bytes_callback(unsigned char* pBuf, unsigned char buf_size, unsigned char* pBytes_actually_read, void* pCallback_data) {
+    int n = min(current_jpeg_frame_len - current_jpeg_frame_offset, buf_size);
+    memcpy(pBuf, current_jpeg_frame + current_jpeg_frame_offset, n);
+    *pBytes_actually_read = (unsigned char)n;
+    current_jpeg_frame_offset += n;
+    return 0;
+}
+
 void drawJpeg(u8* dst, u8* frame, int frame_len) {
-    // TODO https://github.com/Bodmer/JPEGDecoder
+    current_jpeg_frame = frame;
+    current_jpeg_frame_len = frame_len;
+    current_jpeg_frame_offset = 0;
+
+    // picojpeg invocation
+    pjpeg_image_info_t image_info;
+    int status = pjpeg_decode_init(&image_info, pjpeg_need_bytes_callback, NULL, 0);
+    if (status) {
+        iprintf("JPEG decode_init failed %d\n", status);
+        return;
+    }
+
+    int mcu_x = 0;
+    int mcu_y = 0;
+
+    for (;;) {
+        status = pjpeg_decode_mcu();
+        if (status == PJPG_NO_MORE_BLOCKS) {
+            break;
+        } else if (status != 0) {
+            iprintf("JPEG decode_mcu failed %d\n", status);
+            return;
+        }
+
+        if (mcu_y >= image_info.m_MCUSPerCol) {
+            break;
+        }
+
+        int dst_x = mcu_x * image_info.m_MCUWidth;
+        int dst_y = mcu_y * image_info.m_MCUHeight;
+        u16* pDst_row = backBuffer + (dst_y * 256 + dst_x);
+
+        for (int y = 0; y < image_info.m_MCUHeight; y += 8) {
+            const int by_limit = min(8, image_info.m_height - (mcu_y * image_info.m_MCUHeight + y));
+            for (int x = 0; x < image_info.m_MCUWidth; x += 8) {
+                const int bx_limit = min(8, image_info.m_width - (mcu_x * image_info.m_MCUWidth + x));
+
+                // calc offset in decoder buffer
+                uint src_ofs = (x * 8U) + (y * 16U);
+                const uint8* pSrcR = image_info.m_pMCUBufR + src_ofs;
+                const uint8* pSrcG = image_info.m_pMCUBufG + src_ofs;
+                const uint8* pSrcB = image_info.m_pMCUBufB + src_ofs;
+
+                // copy to screen buffer
+                u16* pDst_block = pDst_row + x;
+                for (int by = 0; by < by_limit; by++) {
+                    u16* dst = pDst_block;
+                    for (int bx = 0; bx < bx_limit; bx++) {
+                        u8 r = *pSrcR++;
+                        u8 g = *pSrcG++;
+                        u8 b = *pSrcB++;
+                        *dst = RGB15(r, g, b) | BIT(15);
+                        dst++;
+                    }
+
+                    pSrcR += (8 - bx_limit);
+                    pSrcG += (8 - bx_limit);
+                    pSrcB += (8 - bx_limit);
+                    pDst_block += 256;
+                }
+            }
+            pDst_row += 256 * 8;
+        }
+
+        mcu_x++;
+        if (mcu_x == image_info.m_MCUSPerRow) {
+            mcu_x = 0;
+            mcu_y++;
+        }
+    }
 }
 
 void onConnected() {
