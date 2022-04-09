@@ -1,17 +1,18 @@
-﻿using Ionic.Zlib;
-using System;
+﻿using System;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Threading;
 using System.Windows.Forms;
-using ZstdNet;
 
 namespace server
 {
     internal class Program
     {
-        private const int Framerate = 12;
+        private const int Framerate = 10;
+        private static GamepadEmulator emu = new GamepadEmulator();
+
+        private static NdsKeys currentKeys = 0;
 
         private static ImageCodecInfo GetEncoder(ImageFormat format)
         {
@@ -35,12 +36,15 @@ namespace server
             var server = new ServerTCP();
             server.PacketReceived += (sender, e) =>
             {
-                Console.WriteLine($"Incoming packet:\n----------\n{e}\n----------");
+                currentKeys = (NdsKeys)e;
             };
             server.Start();
 
             var frameTime = (int)(1000.0 / Framerate);
             Console.WriteLine($"Starting frame broadcast at {Framerate}Hz ({frameTime}ms)");
+
+
+            new Thread(UpdateThread).Start();
 
             ImageCodecInfo jpgEncoder = GetEncoder(ImageFormat.Jpeg);
             EncoderParameters encoderParams = new EncoderParameters(1);
@@ -55,46 +59,37 @@ namespace server
             while (true)
             {
                 var start = DateTime.Now;
+
+                // Create screen buffer
                 bigGraphics.CopyFromScreen(screen.Bounds.Top, screen.Bounds.Left, 0, 0, screen.Bounds.Size, CopyPixelOperation.SourceCopy);
                 graphics.DrawImage(bigBitmap, new Rectangle(0, 0, 256, 144));
 
-                // Generate random color image
-                int r = random.Next();
-                for (int y = 0; y < 144; y++)
-                {
-                    for (int x = 0; x < 256; x++)
-                    {
-                        var color = bitmap.GetPixel(x, y);
-                        frame.PutPixel(x, y, color.R, color.G, color.B);
-                    }
-                }
-
-                /*
-                // == ZLIB ==
-                var str = new MemoryStream();
-                var buf = new BinaryWriter(str);
-                var compressed = ZlibStream.CompressBuffer(frame.Data);
-                buf.Write(BitConverter.GetBytes(compressed.Length));
-                buf.Write(compressed);*/
-
-                // == JPEG ==
+                // Encode to JPEG
                 var jpegStr = new MemoryStream();
                 bitmap.Save(jpegStr, jpgEncoder, encoderParams);
-                //bitmap.Save("test.jpeg", jpgEncoder, encoderParams);
-                var str = new MemoryStream();
-                var buf = new BinaryWriter(str);
-                buf.Write(BitConverter.GetBytes((int)jpegStr.Length));
-                buf.Write(jpegStr.GetBuffer());
 
+                // Build packet
+                var packetStream = new MemoryStream();
+                var packetBuf = new BinaryWriter(packetStream);
+                packetBuf.Write(BitConverter.GetBytes((int)jpegStr.Length));
+                packetBuf.Write(jpegStr.GetBuffer());
 
-
-                server.Broadcast(str.GetBuffer());
-
-                var end = DateTime.Now;
-                var duration = (int)(end - start).TotalMilliseconds;
+                // Send
+                server.Broadcast(packetStream.GetBuffer());
 
                 // Wait
+                var end = DateTime.Now;
+                var duration = (int)(end - start).TotalMilliseconds;
                 Thread.Sleep(Math.Max(0, frameTime - duration));
+            }
+        }
+
+        private static void UpdateThread()
+        {
+            Console.WriteLine("Input Thread Running");
+            while (true) {
+                emu.Update(currentKeys);
+                Thread.Sleep(6);
             }
         }
     }

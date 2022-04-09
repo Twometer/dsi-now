@@ -60,7 +60,7 @@ namespace server
 
                 BeginReceive();
             }
-            catch (ObjectDisposedException e)
+            catch (ObjectDisposedException)
             {
             }
         }

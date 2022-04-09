@@ -14,7 +14,6 @@ namespace server
         private int id;
         private TcpClient tcp;
         private NetworkStream stream;
-        private StreamReader reader;
 
         public bool LoggedIn = false;
         public event EventHandler<EventArgs> ConnectionLost;

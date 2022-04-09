@@ -47,11 +47,15 @@
   <ItemGroup>
     <Compile Include="Client.cs" />
     <Compile Include="Frame.cs" />
+    <Compile Include="GamepadEmulator.cs" />
     <Compile Include="IServer.cs" />
+    <Compile Include="NdsKeys.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ServerTCP.cs" />
     <Compile Include="ServerUDP.cs" />
+    <Compile Include="ToggleBoolean.cs" />
+    <Compile Include="Win32.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
