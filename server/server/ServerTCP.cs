@@ -10,11 +10,11 @@ using System.Threading.Tasks;
 
 namespace server
 {
-    internal class ServerTCP : IServer
+    internal class ServerTCP
     {
         private readonly TcpListener listener = new TcpListener(IPAddress.Any, 34221);
         private readonly IDictionary<int, Client> clients = new ConcurrentDictionary<int, Client>();
-        public event EventHandler<string> PacketReceived;
+        public event EventHandler<uint> PacketReceived;
 
         private void AcceptClients()
         {

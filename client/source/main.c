@@ -49,14 +49,19 @@ int min(int a, int b) {
 
 unsigned char
 pjpeg_need_bytes_callback(unsigned char* pBuf, unsigned char buf_size, unsigned char* pBytes_actually_read, void* pCallback_data) {
-    int n = min(current_jpeg_frame_len - current_jpeg_frame_offset, buf_size);
+    uint n = min(current_jpeg_frame_len - current_jpeg_frame_offset, buf_size);
     memcpy(pBuf, current_jpeg_frame + current_jpeg_frame_offset, n);
     *pBytes_actually_read = (unsigned char)n;
     current_jpeg_frame_offset += n;
     return 0;
 }
 
+inline u16 rgb15(int r, int g, int b) {
+    return (u16)(((b >> 3) << 10) | ((g >> 3) << 5) | (r >> 3) | (1 << 15));
+}
+
 void drawJpeg(u8* dst, u8* frame, int frame_len) {
+    // iprintf("Decoding %d bytes\n", frame_len);
     current_jpeg_frame = frame;
     current_jpeg_frame_len = frame_len;
     current_jpeg_frame_offset = 0;
@@ -82,6 +87,7 @@ void drawJpeg(u8* dst, u8* frame, int frame_len) {
         }
 
         if (mcu_y >= image_info.m_MCUSPerCol) {
+            iprintf("something ain't right\n");
             break;
         }
 
@@ -108,7 +114,7 @@ void drawJpeg(u8* dst, u8* frame, int frame_len) {
                         u8 r = *pSrcR++;
                         u8 g = *pSrcG++;
                         u8 b = *pSrcB++;
-                        *dst = RGB15(r, g, b) | BIT(15);
+                        *dst = rgb15(r, g, b);
                         dst++;
                     }
 
@@ -155,10 +161,9 @@ void onConnected() {
     }
     iprintf("Connected to server!\n");
 
-    const char* request_text =
-        "LOGIN DVTP/0.1\n\n";
+    const char* request = "DVTP";
 
-    if (send(sock, request_text, strlen(request_text), 0) == -1) {
+    if (send(sock, request, strlen(request), 0) == -1) {
         iprintf("Login failed.");
         waitForKeys();
         return;
@@ -168,8 +173,11 @@ void onConnected() {
 
     u8 recvbuf[BUF_SIZE];
 
-    iprintf("DSi Now - Running...\n\nby Twometer");
+    iprintf("DSi Now - Running...\n\nby Twometer\n");
     for (;;) {
+        u32 keyState = keysCurrent();
+        send(sock, &keyState, sizeof(u32), 0);
+
         if (keysDown() & KEY_START) {
             shutdown(sock, 0);
             closesocket(sock);
@@ -195,8 +203,10 @@ void onConnected() {
             if (remain <= 0) break;
         }
 
-        target = (u8*)backBuffer + 256 * 40;
+        target = (u8*)(backBuffer + 256 * 40);
         drawJpeg(target, recvbuf, frame_len);
+
+        // iprintf("Frame!\n");
 
         swiWaitForVBlank();
         scanKeys();
@@ -285,6 +295,7 @@ int main(void) {
             if (!wifiConnect()) {
                 iprintf("Failed to connect!\n");
             } else {
+                consoleClear();
                 iprintf("Connected.\n");
                 iprintf("Enter server: ");
                 scanf("%s", hostname);
@@ -292,7 +303,7 @@ int main(void) {
                 return 0;
             }
         } else if (keysDown() & KEY_START) {
-            iprintf("EXIT\n");
+            iprintf("Leaving\n");
             return 0;
         } else if (keysDown() & KEY_B) {
             iprintf("Screen test mode\n");

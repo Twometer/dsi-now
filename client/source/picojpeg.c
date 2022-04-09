@@ -9,7 +9,7 @@
 // Set to 1 if right shifts on signed ints are always unsigned (logical) shifts
 // When 1, arithmetic right shifts will be emulated by using a logical shift
 // with special case code to ensure the sign bit is replicated.
-#define PJPG_RIGHT_SHIFT_IS_ALWAYS_UNSIGNED 1
+#define PJPG_RIGHT_SHIFT_IS_ALWAYS_UNSIGNED 0
 
 // Define PJPG_INLINE to "inline" if your C compiler supports explicit inlining
 #define PJPG_INLINE
@@ -278,7 +278,9 @@ static uint8 gMaxMCUXSize;
 static uint8 gMaxMCUYSize;
 static uint16 gMaxMCUSPerRow;
 static uint16 gMaxMCUSPerCol;
-static uint16 gNumMCUSRemaining;
+
+static uint16 gNumMCUSRemainingX, gNumMCUSRemainingY;
+
 static uint8 gMCUOrg[6];
 
 static pjpeg_need_bytes_callback_t g_pNeedBytesCallback;
@@ -1211,7 +1213,10 @@ static uint8 initFrame(void) {
     gMaxMCUSPerRow = (gImageXSize + (gMaxMCUXSize - 1)) >> ((gMaxMCUXSize == 8) ? 3 : 4);
     gMaxMCUSPerCol = (gImageYSize + (gMaxMCUYSize - 1)) >> ((gMaxMCUYSize == 8) ? 3 : 4);
 
-    gNumMCUSRemaining = gMaxMCUSPerRow * gMaxMCUSPerCol;
+    // This can overflow on large JPEG's.
+    // gNumMCUSRemaining = gMaxMCUSPerRow * gMaxMCUSPerCol;
+    gNumMCUSRemainingX = gMaxMCUSPerRow;
+    gNumMCUSRemainingY = gMaxMCUSPerCol;
 
     return 0;
 }
@@ -1222,7 +1227,7 @@ static uint8 initFrame(void) {
 
 #define PJPG_DCT_SCALE (1U << PJPG_DCT_SCALE_BITS)
 
-#define PJPG_DESCALE(x) PJPG_ARITH_SHIFT_RIGHT_N_16(((x) + (1U << (PJPG_DCT_SCALE_BITS - 1))), PJPG_DCT_SCALE_BITS)
+#define PJPG_DESCALE(x) PJPG_ARITH_SHIFT_RIGHT_N_16(((x) + (1 << (PJPG_DCT_SCALE_BITS - 1))), PJPG_DCT_SCALE_BITS)
 
 #define PJPG_WFIX(x) ((x)*PJPG_DCT_SCALE + 0.5f)
 
@@ -1752,13 +1757,10 @@ static void convertCb(uint8 dstOfs) {
         int16 cbG, cbB;
 
         cbG = ((cb * 88U) >> 8U) - 44U;
-        pDstG[0] = subAndClamp(pDstG[0], cbG);
+        *pDstG++ = subAndClamp(pDstG[0], cbG);
 
         cbB = (cb + ((cb * 198U) >> 8U)) - 227U;
-        pDstB[0] = addAndClamp(pDstB[0], cbB);
-
-        ++pDstG;
-        ++pDstB;
+        *pDstB++ = addAndClamp(pDstB[0], cbB);
     }
 }
 /*----------------------------------------------------------------------------*/
@@ -1774,13 +1776,10 @@ static void convertCr(uint8 dstOfs) {
         int16 crR, crG;
 
         crR = (cr + ((cr * 103U) >> 8U)) - 179;
-        pDstR[0] = addAndClamp(pDstR[0], crR);
+        *pDstR++ = addAndClamp(pDstR[0], crR);
 
         crG = ((cr * 183U) >> 8U) - 91;
-        pDstG[0] = subAndClamp(pDstG[0], crG);
-
-        ++pDstR;
-        ++pDstG;
+        *pDstG++ = subAndClamp(pDstG[0], crG);
     }
 }
 /*----------------------------------------------------------------------------*/
@@ -2213,14 +2212,19 @@ unsigned char pjpeg_decode_mcu(void) {
     if (gCallbackStatus)
         return gCallbackStatus;
 
-    if (!gNumMCUSRemaining)
+    if ((!gNumMCUSRemainingX) && (!gNumMCUSRemainingY))
         return PJPG_NO_MORE_BLOCKS;
 
     status = decodeNextMCU();
     if ((status) || (gCallbackStatus))
         return gCallbackStatus ? gCallbackStatus : status;
 
-    gNumMCUSRemaining--;
+    gNumMCUSRemainingX--;
+    if (!gNumMCUSRemainingX) {
+        gNumMCUSRemainingY--;
+        if (gNumMCUSRemainingY > 0)
+            gNumMCUSRemainingX = gMaxMCUSPerRow;
+    }
 
     return 0;
 }

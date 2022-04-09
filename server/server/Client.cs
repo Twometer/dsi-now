@@ -18,40 +18,34 @@ namespace server
 
         public bool LoggedIn = false;
         public event EventHandler<EventArgs> ConnectionLost;
-        public event EventHandler<string> PacketReceived;
+        public event EventHandler<uint> PacketReceived;
 
         public Client(int id, TcpClient tcp)
         {
             this.id = id;
             this.tcp = tcp;
             this.stream = tcp.GetStream();
-            this.reader = new StreamReader(stream);
         }
 
         private void Receive()
         {
-            var builder = new StringBuilder();
+            byte[] buffer = new byte[4];
             while (true)
             {
                 try
                 {
-                    var line = reader.ReadLine();
-                    if (line == null) { throw new IOException("Connection closed: EOF"); }
-                    if (line.Length == 0)
+                    stream.Read(buffer, 0, buffer.Length);
+                    var bufferStr = Encoding.UTF8.GetString(buffer);
+
+                    if (!LoggedIn &&  bufferStr == "DVTP")
                     {
-                        var message = builder.ToString();
-                        if (message.StartsWith("LOGIN DVTP/0.1"))
-                        {
-                            Console.WriteLine($"Client #{id} logged in successfully");
-                            LoggedIn = true;
-                        }
-                        PacketReceived(this, message);
-                        builder.Clear();
+                        LoggedIn = true;
                     }
                     else
                     {
-                        builder.AppendLine(line);
+                        PacketReceived(this, BitConverter.ToUInt32(buffer, 0));
                     }
+
                 }
                 catch (Exception ex)
                 {
